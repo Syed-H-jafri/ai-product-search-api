@@ -1,0 +1,111 @@
+from fastapi import FastAPI
+from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
+
+import numpy as np
+import faiss
+import json
+from sentence_transformers import SentenceTransformer
+
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+class Query(BaseModel):
+    query: str
+
+
+# =========================
+# GLOBAL VARIABLES
+# =========================
+all_products = []
+index = None
+embeddings = None
+model = None
+
+
+# =========================
+# STARTUP
+# =========================
+@app.on_event("startup")
+def load_system():
+    global all_products, index, embeddings, model
+
+    print("🚀 Starting clean system...")
+
+    with open("data.json") as f:
+        all_products = json.load(f)
+
+    embeddings = np.load("embeddings.npy").astype("float32")
+
+    print("Products:", len(all_products))
+    print("Embeddings:", embeddings.shape)
+
+    # Normalize
+    faiss.normalize_L2(embeddings)
+
+    # Build FAISS index
+    dimension = embeddings.shape[1]
+    index = faiss.IndexFlatIP(dimension)
+    index.add(embeddings)
+
+    # Load model
+    print("🤖 Loading model...")
+    model = SentenceTransformer('all-MiniLM-L6-v2')
+
+    print("✅ System ready")
+
+
+# =========================
+# SEARCH API
+# =========================
+@app.post("/search")
+def search(q: Query):
+
+    query = q.query.strip()
+
+    # EXACT MATCH
+    exact_product = next(
+        (p for p in all_products if p["product_id"].upper() == query.upper()),
+        None
+    )
+
+    if exact_product:
+        return {"results": [{
+            "product_id": exact_product["product_id"],
+            "page": exact_product["page"],
+            "description": exact_product["description"],
+            "bullets": exact_product["bullets"],
+            "score": 1.0
+        }]}
+
+    # SEMANTIC SEARCH
+    query_vec = np.array(model.encode([query]), dtype=np.float32)
+    faiss.normalize_L2(query_vec)
+
+    similarities, indices = index.search(query_vec, k=10)
+
+    results = []
+
+    for i, idx in enumerate(indices[0]):
+        product = all_products[idx]
+        score = float(similarities[0][i])
+
+        if score < 0.5:
+            continue
+
+        results.append({
+            "product_id": product["product_id"],
+            "page": product["page"],
+            "description": product["description"],
+            "bullets": product["bullets"],
+            "score": round(score, 3)
+        })
+
+    return {"results": results}
