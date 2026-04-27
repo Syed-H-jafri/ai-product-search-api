@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI Product Search</title>
+
+    <style>
+        body {
+            font-family: Arial;
+            background: #f4f6f9;
+            padding: 40px;
+        }
+
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            width: 90%;
+            margin: auto;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        input {
+            padding: 10px;
+            width: 50%;
+        }
+
+        select {
+            padding: 10px;
+            margin-left: 10px;
+        }
+
+        button {
+            padding: 10px;
+            background: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th, td {
+            padding: 10px;
+            border: 1px solid #ddd;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            background: #007bff;
+            color: white;
+        }
+
+        .bar-container {
+            background: #ddd;
+            border-radius: 5px;
+            height: 6px;
+            margin-top: 5px;
+        }
+
+        .bar {
+            height: 6px;
+            border-radius: 5px;
+        }
+
+        ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+    <h2>AI Product Search</h2>
+
+    <input type="text" id="query" placeholder="Enter product description">
+
+    <select id="topk">
+        <option value="3">Top 3</option>
+        <option value="5" selected>Top 5</option>
+        <option value="10">Top 10</option>
+    </select>
+
+    <button onclick="search()">Search</button>
+
+    <div id="results"></div>
+</div>
+
+<script>
+async function search() {
+
+    let query = document.getElementById("query").value.trim();
+    let topk = parseInt(document.getElementById("topk").value);
+
+    if (!query) {
+        alert("Please enter a query");
+        return;
+    }
+
+    try {
+
+        // 🔥 FIXED PORT HERE (Render)
+        let response = await fetch("https://ai-product-search-api-iw5u.onrender.com/search", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ query: query })
+        });
+
+        let data = await response.json();
+
+        console.log("API response:", data);
+
+        if (!data.results || data.results.length === 0) {
+            document.getElementById("results").innerHTML = "<p>No results found</p>";
+            return;
+        }
+
+        let output = `
+        <table>
+            <tr>
+                <th>Rank</th>
+                <th>Product</th>
+                <th>Page</th>
+                <th>Score</th>
+                <th>Confidence</th>
+                <th>Description</th>
+                <th>Features</th>
+            </tr>
+        `;
+
+        let results = data.results.slice(0, topk);
+
+        for (let i = 0; i < results.length; i++) {
+
+            let item = results[i];
+
+            let percent = Math.round(item.score * 100);
+
+            let confidence = "Low";
+            let color = "#dc3545";
+
+            if (item.score >= 0.7) {
+                confidence = "High";
+                color = "#28a745";
+            } else if (item.score >= 0.5) {
+                confidence = "Medium";
+                color = "#ffc107";
+            }
+
+            let bulletsHTML = "<ul>";
+            if (item.bullets && item.bullets.length > 0) {
+                for (let b of item.bullets) {
+                    b = b.replace(/^[^\w]+/, "");
+                    bulletsHTML += `<li>${b}</li>`;
+                }
+            }
+            bulletsHTML += "</ul>";
+
+            output += `
+            <tr>
+                <td>${i + 1}</td>
+                <td>${item.product_id}</td>
+                <td>${item.page}</td>
+                <td>${item.score}</td>
+                <td>
+                    ${confidence} (${percent}%)
+                    <div class="bar-container">
+                        <div class="bar" style="width:${percent}%; background:${color};"></div>
+                    </div>
+                </td>
+                <td>${item.description}</td>
+                <td>${bulletsHTML}</td>
+            </tr>
+            `;
+        }
+
+        output += "</table>";
+
+        document.getElementById("results").innerHTML = output;
+
+    } catch (error) {
+        console.error("Error:", error);
+        alert("API connection failed");
+    }
+}
+</script>
+
+</body>
+</html>
