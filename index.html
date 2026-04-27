@@ -1,46 +1,84 @@
-<!DOCTYPE html>
+<!DOCTYPE html> 
 <html>
 <head>
-    <title>AI Product Search</title>
+    <title>AI Product Search - Product Catalog</title>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <style>
         body {
             font-family: Arial;
             background: #f4f6f9;
-            padding: 40px;
+            padding: 10px;
         }
 
         .container {
             background: white;
-            padding: 30px;
+            padding: 20px;
             border-radius: 10px;
-            width: 90%;
+            max-width: 700px;
             margin: auto;
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
 
+        h2 {
+            text-align: left;
+        }
+
+        /* ✅ Subtitle */
+        .subtitle {
+            font-size: 14px;
+            color: #555;
+            margin-top: 5px;
+            margin-bottom: 10px;
+        }
+
+        /* ✅ Catalog link */
+        .catalog-link {
+            margin: 10px 0;
+            display: block;
+            font-weight: bold;
+            color: #007bff;
+            text-decoration: none;
+        }
+
+        .catalog-link:hover {
+            text-decoration: underline;
+        }
+
+        .form-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
         input {
             padding: 10px;
-            width: 50%;
+            flex: 2;
+            min-width: 200px;
         }
 
         select {
             padding: 10px;
-            margin-left: 10px;
+            flex: 1;
+            min-width: 120px;
         }
 
         button {
-            padding: 10px;
+            padding: 10px 20px;
             background: #007bff;
             color: white;
             border: none;
             cursor: pointer;
+            white-space: nowrap;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 20px;
+            font-size: 12px;
         }
 
         th, td {
@@ -71,6 +109,21 @@
             margin: 0;
             padding-left: 20px;
         }
+
+        .table-wrapper {
+            overflow-x: auto;
+        }
+
+        /* ✅ Mobile */
+        @media (max-width: 600px) {
+            .form-group {
+                flex-direction: column;
+            }
+
+            button {
+                width: 100%;
+            }
+        }
     </style>
 </head>
 
@@ -79,20 +132,66 @@
 <div class="container">
     <h2>AI Product Search</h2>
 
-    <input type="text" id="query" placeholder="Enter product description">
+    <!-- ✅ Subtitle -->
+    <p class="subtitle" style="color:#007bff;">
+        Search across Jomar Valve product catalog using AI to quickly identify matching products, specifications, and key features.
+    </p>
 
-    <select id="topk">
-        <option value="3">Top 3</option>
-        <option value="5" selected>Top 5</option>
-        <option value="10">Top 10</option>
-    </select>
+    <!-- ✅ Catalog link -->
+    <a href="https://www.jomarvalve.com/docs/lit-jv-pc.pdf" target="_blank" class="catalog-link">
+        📄 View Product Catalog
+    </a>
 
-    <button onclick="search()">Search</button>
+    <div id="status" style="text-align:center; margin-bottom:10px; font-weight:bold;">
+        🔄 Connecting to server...
+    </div>
+
+    <div class="form-group">
+        <input type="text" id="query" placeholder="Enter product description">
+        <select id="topk">
+            <option value="3">Top 3</option>
+            <option value="5" selected>Top 5</option>
+            <option value="10">Top 10</option>
+        </select>
+        <button onclick="search()">Search</button>
+    </div>
 
     <div id="results"></div>
 </div>
 
 <script>
+
+const API_URL = "https://ai-product-search-api-iw5u.onrender.com/search";
+
+window.onload = async function () {
+    const statusDiv = document.getElementById("status");
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 120000);
+
+    try {
+        const response = await fetch(API_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ query: "test" }),
+            signal: controller.signal
+        });
+
+        clearTimeout(timeout);
+
+        if (response.ok) {
+            statusDiv.innerHTML = "✅ Connected — now you can perform your search";
+            statusDiv.style.color = "green";
+        } else {
+            throw new Error("API not ready");
+        }
+
+    } catch (error) {
+        statusDiv.innerHTML = "⚠️ Server waking up... please wait and try again";
+        statusDiv.style.color = "orange";
+    }
+};
+
 async function search() {
 
     let query = document.getElementById("query").value.trim();
@@ -105,14 +204,19 @@ async function search() {
 
     try {
 
-        // 🔥 FIXED PORT HERE (Render)
-        let response = await fetch("https://ai-product-search-api-iw5u.onrender.com/search", {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 120000);
+
+        let response = await fetch(API_URL, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({ query: query })
+            body: JSON.stringify({ query: query }),
+            signal: controller.signal
         });
+
+        clearTimeout(timeout);
 
         let data = await response.json();
 
@@ -124,6 +228,7 @@ async function search() {
         }
 
         let output = `
+        <div class="table-wrapper">
         <table>
             <tr>
                 <th>Rank</th>
@@ -182,13 +287,13 @@ async function search() {
             `;
         }
 
-        output += "</table>";
+        output += "</table></div>";
 
         document.getElementById("results").innerHTML = output;
 
     } catch (error) {
         console.error("Error:", error);
-        alert("API connection failed");
+        alert("API is waking up. Please wait 1-2 minutes and try again.");
     }
 }
 </script>
