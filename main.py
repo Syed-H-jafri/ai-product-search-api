@@ -42,7 +42,7 @@ def load_system():
     with open("data.json", "r") as f:
         all_products = json.load(f)
 
-    # Load embeddings (kept but not used — no logic break)
+    # Load embeddings (kept, not used)
     with open("embeddings.json", "r") as f:
         embeddings = np.array(json.load(f)).astype("float32")
 
@@ -52,7 +52,7 @@ def load_system():
     # Normalize embeddings
     faiss.normalize_L2(embeddings)
 
-    # Build FAISS index (kept — no break)
+    # Build FAISS index
     dimension = embeddings.shape[1]
     index = faiss.IndexFlatIP(dimension)
     index.add(embeddings)
@@ -86,7 +86,7 @@ def search(q: Query):
         }]}
 
     # =========================
-    # LIGHTWEIGHT SEARCH FIX
+    # LIGHTWEIGHT SEARCH
     # =========================
     query_text = query.lower()
 
@@ -97,8 +97,17 @@ def search(q: Query):
             product["description"] + " " + " ".join(product["bullets"])
         ).lower()
 
-        # simple keyword scoring
-        score = sum(1 for word in query_text.split() if word in text)
+        # ===== UPDATED SCORING (CHANGE 1) =====
+        query_words = set(query_text.split())
+        text_words = set(text.split())
+
+        common_words = query_words.intersection(text_words)
+
+        if len(query_words) == 0:
+            score = 0
+        else:
+            score = len(common_words) / len(query_words)
+        # =====================================
 
         if score > 0:
             results.append((i, score))
@@ -119,7 +128,9 @@ def search(q: Query):
             "page": product["page"],
             "description": product["description"],
             "bullets": product["bullets"],
-            "score": 1.0
+            # ===== UPDATED SCORE OUTPUT (CHANGE 2) =====
+            "score": round(next(score for i, score in results if i == idx), 2)
+            # ==========================================
         })
 
     # =========================
