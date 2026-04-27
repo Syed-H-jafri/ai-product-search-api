@@ -5,7 +5,6 @@ from fastapi.middleware.cors import CORSMiddleware
 import numpy as np
 import faiss
 import json
-# ❌ REMOVED: from sentence_transformers import SentenceTransformer
 
 app = FastAPI()
 
@@ -27,7 +26,7 @@ class Query(BaseModel):
 all_products = []
 index = None
 embeddings = None
-model = None   # (kept, but not used — no logic break)
+model = None
 
 
 # =========================
@@ -39,11 +38,11 @@ def load_system():
 
     print("🚀 Starting clean system...")
 
-    # Load product data (ONLY ONCE)
+    # Load product data
     with open("data.json", "r") as f:
         all_products = json.load(f)
 
-    # Load embeddings from JSON
+    # Load embeddings (kept but not used — no logic break)
     with open("embeddings.json", "r") as f:
         embeddings = np.array(json.load(f)).astype("float32")
 
@@ -53,14 +52,10 @@ def load_system():
     # Normalize embeddings
     faiss.normalize_L2(embeddings)
 
-    # Build FAISS index
+    # Build FAISS index (kept — no break)
     dimension = embeddings.shape[1]
     index = faiss.IndexFlatIP(dimension)
     index.add(embeddings)
-
-    # ❌ REMOVED MODEL LOADING (THIS CAUSED MEMORY ERROR)
-    # print("🤖 Loading model...")
-    # model = SentenceTransformer('all-MiniLM-L6-v2')
 
     print("✅ System ready")
 
@@ -73,7 +68,9 @@ def search(q: Query):
 
     query = q.query.strip()
 
+    # =========================
     # EXACT MATCH
+    # =========================
     exact_product = next(
         (p for p in all_products if p["product_id"].upper() == query.upper()),
         None
@@ -88,28 +85,47 @@ def search(q: Query):
             "score": 1.0
         }]}
 
-    # SEMANTIC SEARCH (LIGHTWEIGHT FIX)
-    #query_vec = np.random.rand(1, embeddings.shape[1]).astype("float32")
-    query_vec = embeddings[0].reshape(1, -1)
-    faiss.normalize_L2(query_vec)
-
-    similarities, indices = index.search(query_vec, k=10)
+    # =========================
+    # LIGHTWEIGHT SEARCH FIX
+    # =========================
+    query_text = query.lower()
 
     results = []
 
-    for i, idx in enumerate(indices[0]):
+    for i, product in enumerate(all_products):
+        text = (
+            product["description"] + " " + " ".join(product["bullets"])
+        ).lower()
+
+        # simple keyword scoring
+        score = sum(1 for word in query_text.split() if word in text)
+
+        if score > 0:
+            results.append((i, score))
+
+    # sort by best match
+    results = sorted(results, key=lambda x: x[1], reverse=True)
+
+    # top 10 only
+    top_indices = [idx for idx, _ in results[:10]]
+
+    final_results = []
+
+    for idx in top_indices:
         product = all_products[idx]
-        score = float(similarities[0][i])
 
-        #if score < 0.1:
-           # continue
-
-        results.append({
+        final_results.append({
             "product_id": product["product_id"],
             "page": product["page"],
             "description": product["description"],
             "bullets": product["bullets"],
-            "score": round(score, 3)
+            "score": 1.0
         })
 
-    return {"results": results}
+    # =========================
+    # NO RESULTS CASE
+    # =========================
+    if not final_results:
+        return {"results": []}
+
+    return {"results": final_results}
