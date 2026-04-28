@@ -1,3 +1,4 @@
+<img width="1536" height="1024" alt="Architecure" src="https://github.com/user-attachments/assets/20fbe034-e342-4c88-a4ba-59bfef1b724a" />
 # 🔍 AI Product Search System
 
 An AI-powered semantic search system that allows users to search product catalogs using natural language and retrieve the most relevant SKUs, features, and specifications.
